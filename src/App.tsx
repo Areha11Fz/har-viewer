@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import './decoders/builtin';
 import { useHarStore } from './store/useHarStore';
 import { Dropzone } from './components/Dropzone';
@@ -8,6 +9,22 @@ import { SplitPane } from './components/SplitPane/SplitPane';
 
 export default function App() {
   const entries = useHarStore((s) => s.entries);
+  const setHarData = useHarStore((s) => s.setHarData);
+
+  useEffect(() => {
+    if (entries.length === 0) {
+      try {
+        const raw = localStorage.getItem('har-viewer:lastHar');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const saved = Array.isArray(parsed) ? parsed : parsed?.entries;
+          if (Array.isArray(saved) && saved.length > 0) {
+            setHarData(saved);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (entries.length === 0) {
     return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Trash2 } from 'lucide-react';
+import { Search, Trash2, X } from 'lucide-react';
 import { useHarStore } from '../store/useHarStore';
 
 const METHODS = ['ALL', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'] as const;
@@ -25,6 +25,15 @@ export const Header: React.FC = () => {
           onChange={(e) => setSearchFilter(e.target.value)}
           className="bg-transparent outline-none text-neutral-200 placeholder-neutral-500 w-full text-[13px]"
         />
+        {searchFilter && (
+          <button
+            onClick={() => setSearchFilter('')}
+            className="text-neutral-500 hover:text-neutral-200 transition-colors shrink-0"
+            title="Clear search"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
       <div className="flex items-center gap-1">
         {METHODS.map((m) => (
