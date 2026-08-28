@@ -42,12 +42,12 @@ export const RequestTable: React.FC = () => {
   const rowVirtualizer = useVirtualizer({
     count: filteredEntries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 30,
+    estimateSize: () => 32,
     overscan: 20,
   });
 
   return (
-    <div ref={parentRef} className="h-full overflow-auto bg-neutral-950 select-none text-xs">
+    <div ref={parentRef} className="h-full overflow-auto bg-neutral-950 select-none text-[13px]">
       {filteredEntries.length === 0 ? (
         <div className="flex items-center justify-center h-full text-neutral-600">
           {entries.length === 0 ? 'No HAR file loaded' : 'No matching entries'}

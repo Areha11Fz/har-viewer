@@ -15,7 +15,7 @@ export const Header: React.FC = () => {
   if (entries.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border-b border-neutral-800 text-xs">
+    <div className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border-b border-neutral-800 text-[13px]">
       <div className="flex items-center gap-1 bg-neutral-800 rounded px-2 py-1 flex-1 max-w-xs">
         <Search size={14} className="text-neutral-500 shrink-0" />
         <input
@@ -23,7 +23,7 @@ export const Header: React.FC = () => {
           placeholder="Filter by URL..."
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
-          className="bg-transparent outline-none text-neutral-200 placeholder-neutral-500 w-full"
+          className="bg-transparent outline-none text-neutral-200 placeholder-neutral-500 w-full text-[13px]"
         />
       </div>
       <div className="flex items-center gap-1">
@@ -31,7 +31,7 @@ export const Header: React.FC = () => {
           <button
             key={m}
             onClick={() => setMethodFilter(m)}
-            className={`px-2 py-0.5 rounded text-xs font-mono transition-colors ${
+            className={`px-2 py-0.5 rounded text-[13px] font-mono transition-colors ${
               methodFilter === m
                 ? m === 'ALL'
                   ? 'bg-neutral-600 text-white'

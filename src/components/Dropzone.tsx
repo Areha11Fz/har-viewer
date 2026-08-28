@@ -86,12 +86,12 @@ export const Dropzone: React.FC = () => {
         }}
       />
       {loading ? (
-        <div className="flex items-center gap-2 text-neutral-400">
+        <div className="flex items-center gap-2 text-neutral-400 text-[15px]">
           <div className="animate-spin h-5 w-5 border-2 border-neutral-400 border-t-transparent rounded-full" />
           <span>Parsing HAR file...</span>
         </div>
       ) : error ? (
-        <div className="flex items-center gap-2 text-red-400">
+        <div className="flex items-center gap-2 text-red-400 text-[15px]">
           <AlertCircle size={20} />
           <span>{error}</span>
         </div>
@@ -99,10 +99,10 @@ export const Dropzone: React.FC = () => {
         <>
           <FileText size={48} className="text-neutral-600 mb-4" />
           <Upload size={24} className="text-neutral-500 mb-2" />
-          <p className="text-neutral-400 text-sm">
+          <p className="text-neutral-400 text-[15px]">
             Drag & drop a <strong>.har</strong> file here
           </p>
-          <p className="text-neutral-600 text-xs mt-1">or click to browse</p>
+          <p className="text-neutral-600 text-[13px] mt-1">or click to browse</p>
         </>
       )}
     </div>

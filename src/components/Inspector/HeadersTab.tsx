@@ -15,14 +15,14 @@ export const HeadersTab: React.FC<Props> = ({ headers }) => {
 
   return (
     <div className="overflow-auto h-full">
-      <table className="w-full text-xs">
+      <table className="w-full text-[13px]">
         <tbody>
           {headers.map((h, i) => (
-            <tr key={i} className="border-b border-neutral-900/50">
-              <td className="px-3 py-1.5 text-right text-neutral-400 font-mono font-medium align-top whitespace-nowrap w-[200px]">
+            <tr key={i} className="border-b border-neutral-900/50 hover:bg-neutral-900/30">
+              <td className="px-3 py-2 text-right text-neutral-400 font-medium align-top whitespace-nowrap w-[220px]">
                 {h.name}
               </td>
-              <td className="px-3 py-1.5 text-neutral-200 font-mono break-all">
+              <td className="px-3 py-2 text-neutral-200 break-all">
                 {h.value}
               </td>
             </tr>
