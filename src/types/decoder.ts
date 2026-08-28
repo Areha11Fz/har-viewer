@@ -2,7 +2,9 @@ export interface DecodeContext {
   mimeType: string;
   url: string;
   headers: Record<string, string>;
+  requestHeaders: Record<string, string>;
   isBase64: boolean;
+  source: 'request' | 'response';
 }
 
 export interface DecodedResult {

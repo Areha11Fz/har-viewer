@@ -7,7 +7,15 @@ export interface HarEntry {
     url: string;
     headers: Array<{ name: string; value: string }>;
     queryString: Array<{ name: string; value: string }>;
-    postData?: { mimeType: string; text?: string };
+    postData?: {
+      mimeType: string;
+      text?: string;
+      encoding?: string;
+      params?: Array<{ name: string; value?: string; fileName?: string; contentType?: string }>;
+      [key: string]: unknown;
+    };
+    bodySize?: number;
+    [key: string]: unknown;
   };
   response: {
     status: number;
@@ -20,6 +28,7 @@ export interface HarEntry {
       encoding?: string;
     };
   };
+  [key: string]: unknown;
 }
 
 export interface HarFile {
@@ -34,7 +43,15 @@ export interface HarFile {
         url: string;
         headers: Array<{ name: string; value: string }>;
         queryString: Array<{ name: string; value: string }>;
-        postData?: { mimeType: string; text?: string };
+        postData?: {
+          mimeType: string;
+          text?: string;
+          encoding?: string;
+          params?: Array<{ name: string; value?: string; fileName?: string; contentType?: string }>;
+          [key: string]: unknown;
+        };
+        bodySize?: number;
+        [key: string]: unknown;
       };
       response: {
         status: number;
@@ -47,6 +64,7 @@ export interface HarFile {
           encoding?: string;
         };
       };
+      [key: string]: unknown;
     }>;
   };
 }

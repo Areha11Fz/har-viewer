@@ -16,6 +16,16 @@ class DecoderRegistry {
   }
 
   findAutoDecoder(context: DecodeContext): DecoderPlugin | undefined {
+    // Priority 1: x-bd-content-encoding header on the matching side decides gzip/zstd
+    const relevantHeader =
+      context.source === 'request'
+        ? context.requestHeaders['x-bd-content-encoding']
+        : context.headers['x-bd-content-encoding'];
+    if (typeof relevantHeader === 'string') {
+      const enc = relevantHeader.trim().toLowerCase();
+      if (enc === 'gzip') return this.get('custom-gzip');
+      if (enc === 'zstd') return this.get('custom-zstd');
+    }
     return this.getAll().find((d) => d.id !== 'raw' && d.canHandle(context));
   }
 

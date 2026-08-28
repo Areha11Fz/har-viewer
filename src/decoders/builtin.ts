@@ -1,5 +1,26 @@
 import { decoderRegistry } from './registry';
 import type { DecoderPlugin } from '../types/decoder';
+import { decompressSync } from 'fflate';
+import { ZstdCodec } from 'zstd-codec';
+
+interface ZstdSimple {
+  decompress(data: Uint8Array): Uint8Array;
+}
+
+let zstdSimple: ZstdSimple | null = null;
+let zstdReady: Promise<ZstdSimple> | null = null;
+
+function getZstd(): Promise<ZstdSimple> {
+  if (zstdSimple) return Promise.resolve(zstdSimple);
+  if (zstdReady) return zstdReady;
+  zstdReady = new Promise((resolve) => {
+    ZstdCodec.run((zstd) => {
+      zstdSimple = new zstd.Simple() as ZstdSimple;
+      resolve(zstdSimple);
+    });
+  });
+  return zstdReady;
+}
 
 const rawDecoder: DecoderPlugin = {
   id: 'raw',
@@ -88,6 +109,7 @@ const customXorDecoder: DecoderPlugin = {
   name: 'Custom XOR Cipher',
   canHandle: (ctx) =>
     ctx.headers['x-custom-encryption'] === 'true' ||
+    ctx.requestHeaders['x-custom-encryption'] === 'true' ||
     ctx.mimeType.includes('application/x-custom'),
   decode: (raw) => {
     const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw) : raw;
@@ -104,9 +126,62 @@ const customXorDecoder: DecoderPlugin = {
   },
 };
 
+const customGzipDecoder: DecoderPlugin = {
+  id: 'custom-gzip',
+  name: 'Custom Gzip',
+  canHandle: (ctx) => {
+    const enc = ctx.source === 'request' ? ctx.requestHeaders['x-bd-content-encoding'] : ctx.headers['x-bd-content-encoding'];
+    return enc?.trim().toLowerCase() === 'gzip';
+  },
+  decode: (raw) => {
+    const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw) : raw;
+    try {
+      const decompressed = decompressSync(bytes);
+      const text = new TextDecoder().decode(decompressed);
+      try {
+        const parsed = JSON.parse(text);
+        return { data: JSON.stringify(parsed, null, 2), language: 'json' };
+      } catch {
+        return { data: text, language: 'text' };
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { data: '[Gzip decompression failed]', language: 'text', error: msg };
+    }
+  },
+};
+
+const customZstdDecoder: DecoderPlugin = {
+  id: 'custom-zstd',
+  name: 'Custom Zstd',
+  canHandle: (ctx) => {
+    const enc = ctx.source === 'request' ? ctx.requestHeaders['x-bd-content-encoding'] : ctx.headers['x-bd-content-encoding'];
+    return enc?.trim().toLowerCase() === 'zstd';
+  },
+  decode: async (raw) => {
+    const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw) : raw;
+    try {
+      const simple = await getZstd();
+      const decompressed = simple.decompress(new Uint8Array(bytes));
+      const text = new TextDecoder().decode(decompressed);
+      try {
+        const parsed = JSON.parse(text);
+        return { data: JSON.stringify(parsed, null, 2), language: 'json' };
+      } catch {
+        return { data: text, language: 'text' };
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { data: '[Zstd decompression failed]', language: 'text', error: msg };
+    }
+  },
+};
+
 decoderRegistry.register(rawDecoder);
 decoderRegistry.register(jsonDecoder);
 decoderRegistry.register(xmlDecoder);
 decoderRegistry.register(htmlDecoder);
 decoderRegistry.register(urlencodedDecoder);
 decoderRegistry.register(customXorDecoder);
+decoderRegistry.register(customGzipDecoder);
+decoderRegistry.register(customZstdDecoder);

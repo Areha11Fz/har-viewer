@@ -11,6 +11,7 @@ import type { HarEntry } from '../../types/har';
 
 interface Props {
   entry: HarEntry;
+  onDecoderInfo?: (decoderName: string | null) => void;
 }
 
 function getLanguageExtension(lang: string) {
@@ -22,27 +23,50 @@ function getLanguageExtension(lang: string) {
   }
 }
 
-export const ResponseTab: React.FC<Props> = ({ entry }) => {
+function headersToRecord(headers: Array<{ name: string; value: string }>): Record<string, string> {
+  return headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+}
+
+export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
   const content = entry.response.content;
   const isBase64 = content.encoding === 'base64';
+
+  const reqHeaders = useMemo(() => headersToRecord(entry.request.headers), [entry.request.headers]);
+  const respHeaders = useMemo(() => headersToRecord(entry.response.headers), [entry.response.headers]);
 
   const context: DecodeContext = useMemo(
     () => ({
       mimeType: content.mimeType || '',
       url: entry.request.url,
-      headers: entry.response.headers.reduce(
-        (acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }),
-        {} as Record<string, string>
-      ),
+      headers: respHeaders,
+      requestHeaders: reqHeaders,
       isBase64,
+      source: 'response',
     }),
-    [entry, content.mimeType, isBase64]
+    [entry.request.url, content.mimeType, isBase64, reqHeaders, respHeaders]
   );
 
   const autoDecoder = useMemo(() => decoderRegistry.findAutoDecoder(context), [context]);
   const [selectedDecoderId, setSelectedDecoderId] = useState<string>(autoDecoder?.id || 'raw');
   const [result, setResult] = useState<DecodedResult>({ data: '', language: 'text' });
   const [copied, setCopied] = useState(false);
+
+  // Reset decoder when entry changes
+  useEffect(() => {
+    const newAuto = decoderRegistry.findAutoDecoder(context);
+    setSelectedDecoderId(newAuto?.id || 'raw');
+  }, [entry._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (onDecoderInfo) {
+      const decoder = decoderRegistry.get(selectedDecoderId);
+      if (decoder && decoder.id !== 'raw') {
+        onDecoderInfo(decoder.name);
+      } else {
+        onDecoderInfo(null);
+      }
+    }
+  }, [selectedDecoderId, onDecoderInfo]);
 
   useEffect(() => {
     if (!content.text) {

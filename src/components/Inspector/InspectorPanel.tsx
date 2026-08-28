@@ -30,30 +30,22 @@ export const InspectorPanel: React.FC = () => {
     );
   }
 
-  const hasBody = !!entry.request.postData?.text;
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex border-b border-neutral-800 bg-neutral-900 shrink-0">
-        {TABS.map((tab) => {
-          const isDisabled = tab.id === 'req-body' && !hasBody;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              disabled={isDisabled}
-              className={`px-4 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : isDisabled
-                    ? 'text-neutral-600 cursor-not-allowed'
-                    : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 text-[13px] font-medium transition-colors whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-neutral-400 hover:text-neutral-200'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
       <div className="flex-1 overflow-hidden">
         {activeTab === 'url' && <UrlTab entry={entry} />}
