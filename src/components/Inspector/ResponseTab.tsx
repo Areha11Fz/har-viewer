@@ -27,12 +27,25 @@ function headersToRecord(headers: Array<{ name: string; value: string }>): Recor
   return headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
 }
 
+function isBase64Like(text: string): boolean {
+  if (!text || text.length < 4) return false;
+  const stripped = text.replace(/\s/g, '');
+  if (!/^[A-Za-z0-9+/=]+$/.test(stripped)) return false;
+  try { atob(stripped.slice(0, 64)); return true; } catch { return false; }
+}
+
 export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
   const content = entry.response.content;
-  const isBase64 = content.encoding === 'base64';
 
   const reqHeaders = useMemo(() => headersToRecord(entry.request.headers), [entry.request.headers]);
   const respHeaders = useMemo(() => headersToRecord(entry.response.headers), [entry.response.headers]);
+
+  const isBase64 = useMemo(() => {
+    if (content.encoding === 'base64') return true;
+    const enc = respHeaders['log-encode-type'] ?? respHeaders['x-bd-content-encoding'];
+    if (enc && content.text && isBase64Like(content.text)) return true;
+    return false;
+  }, [content.encoding, content.text, respHeaders]);
 
   const context: DecodeContext = useMemo(
     () => ({

@@ -16,11 +16,9 @@ class DecoderRegistry {
   }
 
   findAutoDecoder(context: DecodeContext): DecoderPlugin | undefined {
-    // Priority 1: x-bd-content-encoding header on the matching side decides gzip/zstd
-    const relevantHeader =
-      context.source === 'request'
-        ? context.requestHeaders['x-bd-content-encoding']
-        : context.headers['x-bd-content-encoding'];
+    // Priority 1: x-bd-content-encoding or log-encode-type on the matching side decides gzip/zstd
+    const headers = context.source === 'request' ? context.requestHeaders : context.headers;
+    const relevantHeader = headers['x-bd-content-encoding'] ?? headers['log-encode-type'];
     if (typeof relevantHeader === 'string') {
       const enc = relevantHeader.trim().toLowerCase();
       if (enc === 'gzip') return this.get('custom-gzip');

@@ -28,7 +28,7 @@ function headersToRecord(headers: Array<{ name: string; value: string }>): Recor
 }
 
 function detectBase64(text: string, mimeType: string, headers: Record<string, string>): boolean {
-  if (headers['x-bd-content-encoding']) return true;
+  if (headers['x-bd-content-encoding'] || headers['log-encode-type']) return true;
   const enc = (headers['content-encoding'] || '').toLowerCase();
   if (enc === 'gzip' || enc === 'zstd' || enc === 'br') return true;
   if (mimeType.includes('octet-stream') || mimeType.includes('gzip') || mimeType.includes('zstd') || mimeType.includes('protobuf')) return true;

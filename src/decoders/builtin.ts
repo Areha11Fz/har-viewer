@@ -130,7 +130,8 @@ const customGzipDecoder: DecoderPlugin = {
   id: 'custom-gzip',
   name: 'Custom Gzip',
   canHandle: (ctx) => {
-    const enc = ctx.source === 'request' ? ctx.requestHeaders['x-bd-content-encoding'] : ctx.headers['x-bd-content-encoding'];
+    const headers = ctx.source === 'request' ? ctx.requestHeaders : ctx.headers;
+    const enc = headers['x-bd-content-encoding'] ?? headers['log-encode-type'];
     return enc?.trim().toLowerCase() === 'gzip';
   },
   decode: (raw) => {
@@ -155,7 +156,8 @@ const customZstdDecoder: DecoderPlugin = {
   id: 'custom-zstd',
   name: 'Custom Zstd',
   canHandle: (ctx) => {
-    const enc = ctx.source === 'request' ? ctx.requestHeaders['x-bd-content-encoding'] : ctx.headers['x-bd-content-encoding'];
+    const headers = ctx.source === 'request' ? ctx.requestHeaders : ctx.headers;
+    const enc = headers['x-bd-content-encoding'] ?? headers['log-encode-type'];
     return enc?.trim().toLowerCase() === 'zstd';
   },
   decode: async (raw) => {
