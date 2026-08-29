@@ -1,8 +1,13 @@
 import React from 'react';
-import { Search, Trash2, X } from 'lucide-react';
+import { Search, Trash2, X, FileDown, Check, ChevronDown } from 'lucide-react';
 import { useHarStore } from '../store/useHarStore';
+import { markdownForAll } from '../utils/markdownExport';
 
 const METHODS = ['ALL', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'] as const;
+
+function getOrigin(url: string): string {
+  try { return new URL(url).origin; } catch { return url.split('/').slice(0, 3).join('/'); }
+}
 
 export const Header: React.FC = () => {
   const searchFilter = useHarStore((s) => s.searchFilter);
@@ -11,6 +16,46 @@ export const Header: React.FC = () => {
   const setMethodFilter = useHarStore((s) => s.setMethodFilter);
   const entries = useHarStore((s) => s.entries);
   const setHarData = useHarStore((s) => s.setHarData);
+  const [exported, setExported] = React.useState(false);
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const exportRef = React.useRef<HTMLDivElement>(null);
+
+  const origins = React.useMemo(() => {
+    const map = new Map<string, number>();
+    entries.forEach((e) => {
+      const o = getOrigin(e.request.url);
+      map.set(o, (map.get(o) ?? 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [entries]);
+
+  React.useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const doExport = React.useCallback(async (origin: string | null) => {
+    const filtered = origin ? entries.filter((e) => getOrigin(e.request.url) === origin) : entries;
+    if (filtered.length === 0) return;
+    const md = await markdownForAll(filtered);
+    await navigator.clipboard.writeText(md);
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeHost = origin ? origin.replace(/^https?:\/\//, '').replace(/[^a-zA-Z0-9.-]/g, '_') : 'all';
+    a.download = `har-export-${safeHost}-${filtered.length}entries.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setExported(true);
+    setExportOpen(false);
+    setTimeout(() => setExported(false), 2000);
+  }, [entries]);
 
   if (entries.length === 0) return null;
 
@@ -54,6 +99,39 @@ export const Header: React.FC = () => {
       </div>
       <div className="ml-auto flex items-center gap-2">
         <span className="text-neutral-500">{entries.length} entries</span>
+        <div className="relative" ref={exportRef}>
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-colors ${
+              exported ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800' : 'bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700'
+            }`}
+            title="Export to Markdown (LLM)"
+          >
+            {exported ? <Check size={12} /> : <FileDown size={12} />}
+            {exported ? 'Copied' : 'Export MD'}
+            <ChevronDown size={10} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {exportOpen && (
+            <div className="absolute right-0 mt-1 w-72 bg-neutral-800 border border-neutral-700 rounded shadow-lg z-20 overflow-hidden">
+              <button
+                onClick={() => doExport(null)}
+                className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-700 transition-colors"
+              >
+                All hosts — {entries.length} entries
+              </button>
+              {origins.map(([origin, count]) => (
+                <button
+                  key={origin}
+                  onClick={() => doExport(origin)}
+                  className="w-full text-left px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-700 transition-colors border-t border-neutral-700/50 truncate"
+                  title={origin}
+                >
+                  {origin} — {count} {count === 1 ? 'entry' : 'entries'}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setHarData([])}
           className="text-neutral-500 hover:text-red-400 transition-colors p-1"

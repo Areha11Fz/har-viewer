@@ -9,6 +9,7 @@ import { Copy, Check, ChevronDown } from 'lucide-react';
 import type { HarEntry } from '../../types/har';
 import { decompressSync } from 'fflate';
 import { ZstdCodec } from 'zstd-codec';
+import { markdownForEntry } from '../../utils/markdownExport';
 
 type TopTabId = 'url' | 'req-headers' | 'req-body';
 type BottomTabId = 'resp-headers' | 'resp-body';
@@ -440,80 +441,7 @@ async function generateNodeWreqZstd(entry: HarEntry): Promise<string> {
   return lines.join('\n');
 }
 
-function headersToRecord(headers: Array<{ name: string; value: string }>): Record<string, string> {
-  return headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
-}
 
-async function generateMarkdown(entry: HarEntry): Promise<string> {
-  const { decoderRegistry } = await import('../../decoders/registry');
-
-  const reqHeadersObj: Record<string, string> = {};
-  entry.request.headers.forEach((h) => { reqHeadersObj[h.name] = h.value; });
-  const respHeadersObj: Record<string, string> = {};
-  entry.response.headers.forEach((h) => { respHeadersObj[h.name] = h.value; });
-
-  const reqExtracted = extractRawBody(entry);
-  let reqBodyMd = '';
-  if (!reqExtracted) {
-    reqBodyMd = '_No request body_\n';
-  } else {
-    const reqHeaders = headersToRecord(entry.request.headers);
-    const respHeaders = headersToRecord(entry.response.headers);
-    const isBase64 = (() => {
-      if (reqExtracted.encoding === 'base64') return true;
-      if (reqHeaders['x-bd-content-encoding'] || reqHeaders['log-encode-type']) return true;
-      const mime = reqExtracted.mimeType || '';
-      if (mime.includes('octet-stream') || mime.includes('gzip') || mime.includes('zstd')) return true;
-      const stripped = reqExtracted.text.replace(/\s/g, '');
-      return stripped.length >= 4 && /^[A-Za-z0-9+/=]+$/.test(stripped);
-    })();
-    const ctx = { mimeType: reqExtracted.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'request' as const };
-    const dec = decoderRegistry.findAutoDecoder(ctx);
-    const result = await decoderRegistry.runDecoder(dec?.id ?? 'raw', reqExtracted.text, ctx);
-    const lang = result.language === 'json' ? 'json' : result.language === 'xml' ? 'xml' : result.language === 'html' ? 'html' : 'text';
-    reqBodyMd = `\`\`\`${lang}\n${result.data}\n\`\`\`\n`;
-    if (result.error) reqBodyMd = `> ⚠️ ${result.error}\n\n` + reqBodyMd;
-  }
-
-  const respContent = entry.response.content;
-  let respBodyMd = '';
-  if (!respContent.text) {
-    respBodyMd = '_No response body_\n';
-  } else {
-    const reqHeaders = headersToRecord(entry.request.headers);
-    const respHeaders = headersToRecord(entry.response.headers);
-    const isBase64 = respContent.encoding === 'base64' || !!(respHeaders['x-bd-content-encoding'] ?? respHeaders['log-encode-type']);
-    const ctx = { mimeType: respContent.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'response' as const };
-    const dec = decoderRegistry.findAutoDecoder(ctx);
-    const result = await decoderRegistry.runDecoder(dec?.id ?? 'raw', respContent.text, ctx);
-    const lang = result.language === 'json' ? 'json' : result.language === 'xml' ? 'xml' : result.language === 'html' ? 'html' : 'text';
-    respBodyMd = `\`\`\`${lang}\n${result.data}\n\`\`\`\n`;
-    if (result.error) respBodyMd = `> ⚠️ ${result.error}\n\n` + respBodyMd;
-  }
-
-  const md = [
-    `${entry.request.method} ${entry.request.url}`,
-    `status ${entry.response.status} ${entry.response.statusText}`.trim(),
-    ``,
-    `## Request Headers`,
-    '```json',
-    JSON.stringify(reqHeadersObj, null, 2),
-    '```',
-    ``,
-    `## Request Body`,
-    reqBodyMd.trim(),
-    ``,
-    `## Response Headers`,
-    '```json',
-    JSON.stringify(respHeadersObj, null, 2),
-    '```',
-    ``,
-    `## Response Body`,
-    respBodyMd.trim(),
-  ].join('\n');
-
-  return md;
-}
 
 export const InspectorPanel: React.FC = () => {
   const entries = useHarStore((s) => s.entries);
@@ -579,9 +507,8 @@ export const InspectorPanel: React.FC = () => {
 
   const handleExportMarkdown = React.useCallback(async () => {
     if (!entry) return;
-    const md = await generateMarkdown(entry);
+    const md = await markdownForEntry(entry);
     await navigator.clipboard.writeText(md);
-    // also download as file
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
