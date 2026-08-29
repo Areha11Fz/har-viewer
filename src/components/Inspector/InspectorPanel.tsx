@@ -440,6 +440,81 @@ async function generateNodeWreqZstd(entry: HarEntry): Promise<string> {
   return lines.join('\n');
 }
 
+function headersToRecord(headers: Array<{ name: string; value: string }>): Record<string, string> {
+  return headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+}
+
+async function generateMarkdown(entry: HarEntry): Promise<string> {
+  const { decoderRegistry } = await import('../../decoders/registry');
+
+  const reqHeadersObj: Record<string, string> = {};
+  entry.request.headers.forEach((h) => { reqHeadersObj[h.name] = h.value; });
+  const respHeadersObj: Record<string, string> = {};
+  entry.response.headers.forEach((h) => { respHeadersObj[h.name] = h.value; });
+
+  const reqExtracted = extractRawBody(entry);
+  let reqBodyMd = '';
+  if (!reqExtracted) {
+    reqBodyMd = '_No request body_\n';
+  } else {
+    const reqHeaders = headersToRecord(entry.request.headers);
+    const respHeaders = headersToRecord(entry.response.headers);
+    const isBase64 = (() => {
+      if (reqExtracted.encoding === 'base64') return true;
+      if (reqHeaders['x-bd-content-encoding'] || reqHeaders['log-encode-type']) return true;
+      const mime = reqExtracted.mimeType || '';
+      if (mime.includes('octet-stream') || mime.includes('gzip') || mime.includes('zstd')) return true;
+      const stripped = reqExtracted.text.replace(/\s/g, '');
+      return stripped.length >= 4 && /^[A-Za-z0-9+/=]+$/.test(stripped);
+    })();
+    const ctx = { mimeType: reqExtracted.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'request' as const };
+    const dec = decoderRegistry.findAutoDecoder(ctx);
+    const result = await decoderRegistry.runDecoder(dec?.id ?? 'raw', reqExtracted.text, ctx);
+    const lang = result.language === 'json' ? 'json' : result.language === 'xml' ? 'xml' : result.language === 'html' ? 'html' : 'text';
+    reqBodyMd = `\`\`\`${lang}\n${result.data}\n\`\`\`\n`;
+    if (result.error) reqBodyMd = `> ⚠️ ${result.error}\n\n` + reqBodyMd;
+  }
+
+  const respContent = entry.response.content;
+  let respBodyMd = '';
+  if (!respContent.text) {
+    respBodyMd = '_No response body_\n';
+  } else {
+    const reqHeaders = headersToRecord(entry.request.headers);
+    const respHeaders = headersToRecord(entry.response.headers);
+    const isBase64 = respContent.encoding === 'base64' || !!(respHeaders['x-bd-content-encoding'] ?? respHeaders['log-encode-type']);
+    const ctx = { mimeType: respContent.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'response' as const };
+    const dec = decoderRegistry.findAutoDecoder(ctx);
+    const result = await decoderRegistry.runDecoder(dec?.id ?? 'raw', respContent.text, ctx);
+    const lang = result.language === 'json' ? 'json' : result.language === 'xml' ? 'xml' : result.language === 'html' ? 'html' : 'text';
+    respBodyMd = `\`\`\`${lang}\n${result.data}\n\`\`\`\n`;
+    if (result.error) respBodyMd = `> ⚠️ ${result.error}\n\n` + respBodyMd;
+  }
+
+  const md = [
+    `${entry.request.method} ${entry.request.url}`,
+    `status ${entry.response.status} ${entry.response.statusText}`.trim(),
+    ``,
+    `## Request Headers`,
+    '```json',
+    JSON.stringify(reqHeadersObj, null, 2),
+    '```',
+    ``,
+    `## Request Body`,
+    reqBodyMd.trim(),
+    ``,
+    `## Response Headers`,
+    '```json',
+    JSON.stringify(respHeadersObj, null, 2),
+    '```',
+    ``,
+    `## Response Body`,
+    respBodyMd.trim(),
+  ].join('\n');
+
+  return md;
+}
+
 export const InspectorPanel: React.FC = () => {
   const entries = useHarStore((s) => s.entries);
   const selectedEntryId = useHarStore((s) => s.selectedEntryId);
@@ -497,6 +572,28 @@ export const InspectorPanel: React.FC = () => {
     if (!entry) return;
     const code = await generateNodeWreqZstd(entry);
     await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setExportOpen(false);
+    setTimeout(() => setCopied(false), 2000);
+  }, [entry]);
+
+  const handleExportMarkdown = React.useCallback(async () => {
+    if (!entry) return;
+    const md = await generateMarkdown(entry);
+    await navigator.clipboard.writeText(md);
+    // also download as file
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    let host = 'export';
+    try { host = new URL(entry.request.url).hostname || 'export'; } catch { /* ignore */ }
+    const safeMethod = (entry.request.method || 'GET').toLowerCase();
+    a.href = url;
+    a.download = `har-${safeMethod}-${host}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
     setCopied(true);
     setExportOpen(false);
     setTimeout(() => setCopied(false), 2000);
@@ -603,6 +700,12 @@ export const InspectorPanel: React.FC = () => {
                       className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-700 transition-colors border-t border-neutral-700"
                     >
                       Node.js wreq zstd
+                    </button>
+                    <button
+                      onClick={handleExportMarkdown}
+                      className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-700 transition-colors border-t border-neutral-700"
+                    >
+                      Markdown (LLM)
                     </button>
                   </div>
                 )}
