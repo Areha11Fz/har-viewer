@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useHarStore } from '../../store/useHarStore';
 
@@ -46,8 +46,53 @@ export const RequestTable: React.FC = () => {
     overscan: 20,
   });
 
+  useEffect(() => {
+    parentRef.current?.focus();
+  }, [entries.length]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (filteredEntries.length === 0) return;
+    const activeTag = document.activeElement?.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+    let nextIndex = -1;
+    const currentIndex = filteredEntries.findIndex((en) => en._id === selectedEntryId);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      nextIndex = currentIndex === -1 ? 0 : Math.min(filteredEntries.length - 1, currentIndex + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      nextIndex = currentIndex === -1 ? 0 : Math.max(0, currentIndex - 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      nextIndex = filteredEntries.length - 1;
+    } else {
+      return;
+    }
+    const next = filteredEntries[nextIndex];
+    if (next) {
+      selectEntry(next._id);
+      rowVirtualizer.scrollToIndex(nextIndex, { align: 'auto' });
+    }
+  }, [filteredEntries, selectedEntryId, selectEntry, rowVirtualizer]);
+
+  useEffect(() => {
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') return;
+      // Only handle if left pane is in viewport and no modal is open
+      if (!parentRef.current) return;
+      handleKeyDown(e as unknown as React.KeyboardEvent);
+    };
+    window.addEventListener('keydown', onWindowKeyDown);
+    return () => window.removeEventListener('keydown', onWindowKeyDown);
+  }, [handleKeyDown]);
+
   return (
-    <div ref={parentRef} className="h-full overflow-auto bg-neutral-950 select-none text-[13px]">
+    <div ref={parentRef} tabIndex={0} className="h-full overflow-auto bg-neutral-950 select-none text-[13px] outline-none focus:outline-none">
       {filteredEntries.length === 0 ? (
         <div className="flex items-center justify-center h-full text-neutral-600">
           {entries.length === 0 ? 'No HAR file loaded' : 'No matching entries'}

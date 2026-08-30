@@ -43,6 +43,35 @@ export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
     return false;
   }, [content.encoding, content.text, respHeaders]);
 
+  const isImage = useMemo(() => {
+    const mime = (content.mimeType || '').toLowerCase();
+    if (mime.startsWith('image/')) return true;
+    const ct = (respHeaders['content-type'] || '').toLowerCase();
+    return ct.startsWith('image/');
+  }, [content.mimeType, respHeaders]);
+
+  const imageSrc = useMemo(() => {
+    if (!isImage || !content.text) return '';
+    const mime = content.mimeType || respHeaders['content-type'] || 'image/webp';
+    if (content.encoding === 'base64') {
+      return `data:${mime};base64,${content.text}`;
+    }
+    // raw binary string -> base64
+    try {
+      // content.text may contain binary chars; btoa expects binary string
+      return `data:${mime};base64,${btoa(content.text)}`;
+    } catch {
+      try {
+        const bytes = new TextEncoder().encode(content.text);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return `data:${mime};base64,${btoa(binary)}`;
+      } catch {
+        return '';
+      }
+    }
+  }, [isImage, content.text, content.encoding, content.mimeType, respHeaders]);
+
   const context: DecodeContext = useMemo(
     () => ({
       mimeType: content.mimeType || '',
@@ -90,11 +119,13 @@ export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
   }, [selectedDecoderId, content.text, context]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(result.data).then(() => {
+    const text = isImage && imageSrc ? imageSrc : result.data;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
-  }, [result.data]);
+  }, [result.data, isImage, imageSrc]);
 
   return (
     <div className="flex flex-col h-full">
@@ -134,27 +165,38 @@ export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden">
-        <Editor
-          height="100%"
-          language={getMonacoLanguage(result.language)}
-          value={result.data}
-          theme="vs-dark"
-          options={{
-            readOnly: false,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontSize: 13,
-            fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
-            lineNumbers: 'on',
-            wordWrap: 'on',
-            automaticLayout: true,
-            padding: { top: 8, bottom: 8 },
-            selectOnLineNumbers: true,
-            lineNumbersMinChars: 3,
-          }}
-        />
-      </div>
+      {isImage && imageSrc ? (
+        <div className="flex-1 overflow-auto bg-neutral-950 flex items-center justify-center p-4">
+          <img
+            src={imageSrc}
+            alt="Response image"
+            className="max-w-full max-h-full object-contain rounded border border-neutral-800 bg-neutral-900"
+            style={{ imageRendering: 'auto' }}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-hidden">
+          <Editor
+            height="100%"
+            language={getMonacoLanguage(result.language)}
+            value={result.data}
+            theme="vs-dark"
+            options={{
+              readOnly: false,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              fontSize: 13,
+              fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+              lineNumbers: 'on',
+              wordWrap: 'on',
+              automaticLayout: true,
+              padding: { top: 8, bottom: 8 },
+              selectOnLineNumbers: true,
+              lineNumbersMinChars: 3,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
