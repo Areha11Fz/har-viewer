@@ -1,10 +1,6 @@
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { xml } from '@codemirror/lang-xml';
-import { html } from '@codemirror/lang-html';
+import Editor from '@monaco-editor/react';
 import { Copy, Check } from 'lucide-react';
-import { editorTheme } from './theme';
 import { decoderRegistry } from '../../decoders/registry';
 import type { DecodeContext, DecodedResult } from '../../types/decoder';
 import type { HarEntry } from '../../types/har';
@@ -14,12 +10,12 @@ interface Props {
   onDecoderInfo?: (decoderName: string | null) => void;
 }
 
-function getLanguageExtension(lang: string) {
+function getMonacoLanguage(lang: string): string {
   switch (lang) {
-    case 'json': return [json()];
-    case 'xml': return [xml()];
-    case 'html': return [html()];
-    default: return [];
+    case 'json': return 'json';
+    case 'xml': return 'xml';
+    case 'html': return 'html';
+    default: return 'plaintext';
   }
 }
 
@@ -33,7 +29,6 @@ function detectBase64(text: string, mimeType: string, headers: Record<string, st
   if (enc === 'gzip' || enc === 'zstd' || enc === 'br') return true;
   if (mimeType.includes('octet-stream') || mimeType.includes('gzip') || mimeType.includes('zstd') || mimeType.includes('protobuf')) return true;
   if (text.length < 4) return false;
-  // strip whitespace, then test base64 charset; must be divisible by 4 after padding
   const stripped = text.replace(/\s/g, '');
   if (!/^[A-Za-z0-9+/=]+$/.test(stripped)) return false;
   try { atob(stripped.slice(0, 64)); return true; } catch { return false; }
@@ -52,7 +47,6 @@ function extractBodyText(entry: HarEntry): { text: string; mimeType: string; enc
   const reqHeaders = (entry.request.headers as Array<{ name: string; value: string }>) || [];
   const contentType = reqHeaders.find((h) => h.name.toLowerCase() === 'content-type')?.value || (postData?.mimeType as string) || '';
 
-  // Vendor extensions: _content, content, _postData, body, _requestBody, _requestBodyStatus helpers
   const candidates: unknown[] = [
     raw['_content'],
     raw['content'],
@@ -76,7 +70,6 @@ function extractBodyText(entry: HarEntry): { text: string; mimeType: string; enc
           encoding: obj['encoding'] as string | undefined,
         };
       }
-      // Some exporters store _content as { size, mimeType, text, encoding } like response.content
       if (typeof obj['text'] === 'string') {
         return {
           text: obj['text'] as string,
@@ -86,7 +79,6 @@ function extractBodyText(entry: HarEntry): { text: string; mimeType: string; enc
       }
     }
   }
-  // Direct check for _content as top-level string field (seen in some HARs)
   const directContent = raw['_content'];
   if (typeof directContent === 'string' && directContent.length > 0) {
     return { text: directContent, mimeType: contentType };
@@ -107,7 +99,6 @@ export const RequestBodyTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
 
   const isBase64 = useMemo(() => {
     if (!bodyText) return false;
-    // explicit encoding field takes precedence
     if (extracted?.encoding === 'base64') return true;
     return detectBase64(bodyText, mimeType, reqHeaders);
   }, [bodyText, mimeType, reqHeaders, extracted?.encoding]);
@@ -229,14 +220,25 @@ export const RequestBodyTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
-        <CodeMirror
-          value={result.data}
+      <div className="flex-1 overflow-hidden">
+        <Editor
           height="100%"
-          theme={editorTheme}
-          extensions={getLanguageExtension(result.language)}
-          editable={false}
-          basicSetup={{ lineNumbers: true, foldGutter: true }}
+          language={getMonacoLanguage(result.language)}
+          value={result.data}
+          theme="vs-dark"
+          options={{
+            readOnly: false,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+            lineNumbers: 'on',
+            wordWrap: 'on',
+            automaticLayout: true,
+            padding: { top: 8, bottom: 8 },
+            selectOnLineNumbers: true,
+            lineNumbersMinChars: 3,
+          }}
         />
       </div>
     </div>

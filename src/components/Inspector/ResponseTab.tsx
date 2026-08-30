@@ -1,10 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { xml } from '@codemirror/lang-xml';
-import { html } from '@codemirror/lang-html';
+import Editor from '@monaco-editor/react';
 import { Copy, Check } from 'lucide-react';
-import { editorTheme } from './theme';
 import { decoderRegistry } from '../../decoders/registry';
 import type { DecodeContext, DecodedResult } from '../../types/decoder';
 import type { HarEntry } from '../../types/har';
@@ -14,12 +10,12 @@ interface Props {
   onDecoderInfo?: (decoderName: string | null) => void;
 }
 
-function getLanguageExtension(lang: string) {
+function getMonacoLanguage(lang: string): string {
   switch (lang) {
-    case 'json': return [json()];
-    case 'xml': return [xml()];
-    case 'html': return [html()];
-    default: return [];
+    case 'json': return 'json';
+    case 'xml': return 'xml';
+    case 'html': return 'html';
+    default: return 'plaintext';
   }
 }
 
@@ -138,14 +134,25 @@ export const ResponseTab: React.FC<Props> = ({ entry, onDecoderInfo }) => {
         </div>
       )}
 
-      <div className="flex-1 overflow-auto">
-        <CodeMirror
-          value={result.data}
+      <div className="flex-1 overflow-hidden">
+        <Editor
           height="100%"
-          theme={editorTheme}
-          extensions={getLanguageExtension(result.language)}
-          editable={false}
-          basicSetup={{ lineNumbers: true, foldGutter: true }}
+          language={getMonacoLanguage(result.language)}
+          value={result.data}
+          theme="vs-dark"
+          options={{
+            readOnly: false,
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            fontSize: 13,
+            fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace',
+            lineNumbers: 'on',
+            wordWrap: 'on',
+            automaticLayout: true,
+            padding: { top: 8, bottom: 8 },
+            selectOnLineNumbers: true,
+            lineNumbersMinChars: 3,
+          }}
         />
       </div>
     </div>
