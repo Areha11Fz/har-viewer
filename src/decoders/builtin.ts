@@ -104,6 +104,24 @@ const urlencodedDecoder: DecoderPlugin = {
   },
 };
 
+const protobufDecoder: DecoderPlugin = {
+  id: 'protobuf-base64',
+  name: 'Protobuf (Base64)',
+  description: 'Encodes protobuf bytes as base64 for display',
+  canHandle: (ctx) => ctx.mimeType.includes('application/x-protobuf'),
+  decode: (raw) => {
+    const bytes = typeof raw === 'string' ? new TextEncoder().encode(raw) : raw;
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode(...chunk);
+    }
+    const b64 = btoa(binary);
+    return { data: b64, language: 'text' };
+  },
+};
+
 const customXorDecoder: DecoderPlugin = {
   id: 'custom-xor',
   name: 'Custom XOR Cipher',
@@ -180,6 +198,7 @@ const customZstdDecoder: DecoderPlugin = {
 };
 
 decoderRegistry.register(rawDecoder);
+decoderRegistry.register(protobufDecoder);
 decoderRegistry.register(jsonDecoder);
 decoderRegistry.register(xmlDecoder);
 decoderRegistry.register(htmlDecoder);
