@@ -533,7 +533,6 @@ export const InspectorPanel: React.FC = () => {
     const respHeadersObj: Record<string, string> = {};
     entry.response.headers.forEach((h) => { respHeadersObj[h.name] = h.value; });
 
-    // Use shared markdown helpers to get decoded bodies (reuse extractRawBody + decoderRegistry)
     const reqExtracted = extractRawBody(entry);
     let reqBody: unknown = null;
     if (reqExtracted) {
@@ -578,18 +577,6 @@ export const InspectorPanel: React.FC = () => {
     };
     const jsonStr = JSON.stringify(jsonObj, null, 2);
     await navigator.clipboard.writeText(jsonStr);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    let host = 'export';
-    try { host = new URL(entry.request.url).hostname || 'export'; } catch { /* ignore */ }
-    const safeMethod = (entry.request.method || 'GET').toLowerCase();
-    a.href = url;
-    a.download = `har-${safeMethod}-${host}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
     setCopied(true);
     setExportOpen(false);
     setTimeout(() => setCopied(false), 2000);
