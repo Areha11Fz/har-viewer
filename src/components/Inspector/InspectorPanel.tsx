@@ -526,6 +526,75 @@ export const InspectorPanel: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   }, [entry]);
 
+  const handleExportJson = React.useCallback(async () => {
+    if (!entry) return;
+    const reqHeadersObj: Record<string, string> = {};
+    entry.request.headers.forEach((h) => { reqHeadersObj[h.name] = h.value; });
+    const respHeadersObj: Record<string, string> = {};
+    entry.response.headers.forEach((h) => { respHeadersObj[h.name] = h.value; });
+
+    // Use shared markdown helpers to get decoded bodies (reuse extractRawBody + decoderRegistry)
+    const reqExtracted = extractRawBody(entry);
+    let reqBody: unknown = null;
+    if (reqExtracted) {
+      const reqHeaders = entry.request.headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+      const respHeaders = entry.response.headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+      const isBase64 = (() => {
+        if (reqExtracted.encoding === 'base64') return true;
+        if (reqHeaders['x-bd-content-encoding'] || reqHeaders['log-encode-type']) return true;
+        const mime = reqExtracted.mimeType || '';
+        if (mime.includes('octet-stream') || mime.includes('gzip') || mime.includes('zstd') || mime.includes('protobuf')) return true;
+        const stripped = reqExtracted.text.replace(/\s/g, '');
+        return stripped.length >= 4 && /^[A-Za-z0-9+/=]+$/.test(stripped);
+      })();
+      const ctx = { mimeType: reqExtracted.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'request' as const };
+      const { decoderRegistry: reg } = await import('../../decoders/registry');
+      const dec = reg.findAutoDecoder(ctx);
+      const res = await reg.runDecoder(dec?.id ?? 'raw', reqExtracted.text, ctx);
+      try { reqBody = JSON.parse(res.data); } catch { reqBody = res.data; }
+    }
+
+    let respBody: unknown = null;
+    if (entry.response.content.text) {
+      const reqHeaders = entry.request.headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+      const respHeaders = entry.response.headers.reduce((acc, h) => ({ ...acc, [h.name.toLowerCase()]: h.value }), {} as Record<string, string>);
+      const isBase64 = entry.response.content.encoding === 'base64' || !!(respHeaders['x-bd-content-encoding'] ?? respHeaders['log-encode-type']);
+      const ctx = { mimeType: entry.response.content.mimeType || '', url: entry.request.url, headers: respHeaders, requestHeaders: reqHeaders, isBase64, source: 'response' as const };
+      const { decoderRegistry: reg } = await import('../../decoders/registry');
+      const dec = reg.findAutoDecoder(ctx);
+      const res = await reg.runDecoder(dec?.id ?? 'raw', entry.response.content.text, ctx);
+      try { respBody = JSON.parse(res.data); } catch { respBody = res.data; }
+    }
+
+    const jsonObj = {
+      url: entry.request.url,
+      method: entry.request.method,
+      status: entry.response.status,
+      statusText: entry.response.statusText,
+      requestHeaders: reqHeadersObj,
+      requestBody: reqBody,
+      responseHeaders: respHeadersObj,
+      responseBody: respBody,
+    };
+    const jsonStr = JSON.stringify(jsonObj, null, 2);
+    await navigator.clipboard.writeText(jsonStr);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    let host = 'export';
+    try { host = new URL(entry.request.url).hostname || 'export'; } catch { /* ignore */ }
+    const safeMethod = (entry.request.method || 'GET').toLowerCase();
+    a.href = url;
+    a.download = `har-${safeMethod}-${host}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setCopied(true);
+    setExportOpen(false);
+    setTimeout(() => setCopied(false), 2000);
+  }, [entry]);
+
   if (!entry) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-600 text-[15px]">
@@ -633,6 +702,12 @@ export const InspectorPanel: React.FC = () => {
                       className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-700 transition-colors border-t border-neutral-700"
                     >
                       Markdown (LLM)
+                    </button>
+                    <button
+                      onClick={handleExportJson}
+                      className="w-full text-left px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-700 transition-colors border-t border-neutral-700"
+                    >
+                      JSON
                     </button>
                   </div>
                 )}
