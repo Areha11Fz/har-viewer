@@ -45,10 +45,14 @@ const savedEntries = loadSaved();
 interface HarStore {
   entries: HarEntry[];
   selectedEntryId: string | null;
+  checkedEntryIds: string[];
   searchFilter: string;
   methodFilter: string;
   setHarData: (entries: HarEntry[]) => void;
   selectEntry: (id: string | null) => void;
+  toggleChecked: (id: string) => void;
+  setCheckedAll: (ids: string[]) => void;
+  clearChecked: () => void;
   setSearchFilter: (query: string) => void;
   setMethodFilter: (method: string) => void;
 }
@@ -56,13 +60,22 @@ interface HarStore {
 export const useHarStore = create<HarStore>((set) => ({
   entries: savedEntries ?? [],
   selectedEntryId: savedEntries?.[0]?._id ?? null,
+  checkedEntryIds: [],
   searchFilter: '',
   methodFilter: 'ALL',
   setHarData: (entries) => {
     saveEntries(entries);
-    set({ entries, selectedEntryId: entries[0]?._id ?? null });
+    set({ entries, selectedEntryId: entries[0]?._id ?? null, checkedEntryIds: [] });
   },
   selectEntry: (id) => set({ selectedEntryId: id }),
+  toggleChecked: (id) =>
+    set((s) => ({
+      checkedEntryIds: s.checkedEntryIds.includes(id)
+        ? s.checkedEntryIds.filter((x) => x !== id)
+        : [...s.checkedEntryIds, id],
+    })),
+  setCheckedAll: (ids) => set({ checkedEntryIds: ids }),
+  clearChecked: () => set({ checkedEntryIds: [] }),
   setSearchFilter: (searchFilter) => set({ searchFilter }),
   setMethodFilter: (methodFilter) => set({ methodFilter }),
 }));

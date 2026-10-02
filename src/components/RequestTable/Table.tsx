@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useHarStore } from '../../store/useHarStore';
 
@@ -32,12 +32,16 @@ export const RequestTable: React.FC = () => {
   const searchFilter = useHarStore((s) => s.searchFilter);
   const methodFilter = useHarStore((s) => s.methodFilter);
   const parentRef = useRef<HTMLDivElement>(null);
+  const checkedEntryIds = useHarStore((s) => s.checkedEntryIds);
+  const toggleChecked = useHarStore((s) => s.toggleChecked);
 
   const filteredEntries = entries.filter((e) => {
     const matchesSearch = !searchFilter || e.request.url.toLowerCase().includes(searchFilter.toLowerCase());
     const matchesMethod = methodFilter === 'ALL' || e.request.method === methodFilter;
     return matchesSearch && matchesMethod;
   });
+
+  const checkedSet = useMemo(() => new Set(checkedEntryIds), [checkedEntryIds]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredEntries.length,
@@ -104,6 +108,7 @@ export const RequestTable: React.FC = () => {
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const item = filteredEntries[virtualRow.index];
             const isSelected = item._id === selectedEntryId;
+            const isChecked = checkedSet.has(item._id);
             const status = item.response.status;
 
             return (
@@ -118,12 +123,20 @@ export const RequestTable: React.FC = () => {
                   height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
-                className={`flex items-center px-3 gap-3 cursor-pointer border-b border-neutral-900/50 ${
+                className={`flex items-center px-2 gap-2 cursor-pointer border-b border-neutral-900/50 ${
                   isSelected
                     ? 'bg-blue-600/20 border-l-2 border-l-blue-500'
                     : 'hover:bg-neutral-900/50 border-l-2 border-l-transparent'
                 }`}
               >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleChecked(item._id)}
+                  className="shrink-0 w-3.5 h-3.5 accent-blue-500 cursor-pointer"
+                  title="Select for export"
+                />
                 <span className={`w-10 text-right font-semibold tabular-nums ${getStatusColor(status)}`}>
                   {status || '---'}
                 </span>

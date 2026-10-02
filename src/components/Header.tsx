@@ -16,9 +16,22 @@ export const Header: React.FC = () => {
   const setMethodFilter = useHarStore((s) => s.setMethodFilter);
   const entries = useHarStore((s) => s.entries);
   const setHarData = useHarStore((s) => s.setHarData);
+  const checkedEntryIds = useHarStore((s) => s.checkedEntryIds);
+  const setCheckedAll = useHarStore((s) => s.setCheckedAll);
+  const clearChecked = useHarStore((s) => s.clearChecked);
   const [exported, setExported] = React.useState(false);
   const [exportOpen, setExportOpen] = React.useState(false);
+  const [exportedSelected, setExportedSelected] = React.useState(false);
   const exportRef = React.useRef<HTMLDivElement>(null);
+
+  const filteredEntries = React.useMemo(() => entries.filter((e) => {
+    const matchesSearch = !searchFilter || e.request.url.toLowerCase().includes(searchFilter.toLowerCase());
+    const matchesMethod = methodFilter === 'ALL' || e.request.method === methodFilter;
+    return matchesSearch && matchesMethod;
+  }), [entries, searchFilter, methodFilter]);
+
+  const checkedSet = React.useMemo(() => new Set(checkedEntryIds), [checkedEntryIds]);
+  const allFilteredChecked = filteredEntries.length > 0 && filteredEntries.every((e) => checkedSet.has(e._id));
 
   const origins = React.useMemo(() => {
     const map = new Map<string, number>();
@@ -99,6 +112,56 @@ export const Header: React.FC = () => {
       </div>
       <div className="ml-auto flex items-center gap-2">
         <span className="text-neutral-500">{entries.length} entries</span>
+        {checkedEntryIds.length > 0 && (
+          <span className="text-blue-400">{checkedEntryIds.length} selected</span>
+        )}
+        <button
+          onClick={() => {
+            if (allFilteredChecked) clearChecked();
+            else setCheckedAll(filteredEntries.map((e) => e._id));
+          }}
+          className="px-2 py-0.5 rounded text-xs border bg-neutral-800 text-neutral-300 border-neutral-700 hover:bg-neutral-700 transition-colors"
+          title={allFilteredChecked ? 'Unselect all (filtered)' : 'Select all (filtered)'}
+        >
+          {allFilteredChecked ? 'Unselect all' : 'Select all'}
+        </button>
+        {checkedEntryIds.length > 0 && (
+          <>
+            <button
+              onClick={clearChecked}
+              className="px-2 py-0.5 rounded text-xs border bg-neutral-800 text-neutral-400 border-neutral-700 hover:bg-neutral-700 transition-colors"
+              title="Clear selection"
+            >
+              Clear selection
+            </button>
+            <button
+              onClick={async () => {
+                const selected = entries.filter((e) => checkedSet.has(e._id));
+                if (selected.length === 0) return;
+                const md = await markdownForAll(selected);
+                await navigator.clipboard.writeText(md);
+                const blob = new Blob([md], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `har-export-selected-${selected.length}entries.md`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                setExportedSelected(true);
+                setTimeout(() => setExportedSelected(false), 2000);
+              }}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs border transition-colors ${
+                exportedSelected ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800' : 'bg-blue-900/40 text-blue-300 border-blue-800 hover:bg-blue-800/50'
+              }`}
+              title="Export selected entries to Markdown (LLM)"
+            >
+              {exportedSelected ? <Check size={12} /> : <FileDown size={12} />}
+              {exportedSelected ? 'Copied' : `Export selected (${checkedEntryIds.length})`}
+            </button>
+          </>
+        )}
         <div className="relative" ref={exportRef}>
           <button
             onClick={() => setExportOpen((v) => !v)}
