@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Trash2, X, FileDown, Check, ChevronDown } from 'lucide-react';
 import { useHarStore } from '../store/useHarStore';
 import { markdownForAll } from '../utils/markdownExport';
+import { matchesEntry } from '../utils/entrySearch';
 
 const METHODS = ['ALL', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'] as const;
 
@@ -24,11 +25,16 @@ export const Header: React.FC = () => {
   const [exportedSelected, setExportedSelected] = React.useState(false);
   const exportRef = React.useRef<HTMLDivElement>(null);
 
-  const filteredEntries = React.useMemo(() => entries.filter((e) => {
-    const matchesSearch = !searchFilter || e.request.url.toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesMethod = methodFilter === 'ALL' || e.request.method === methodFilter;
-    return matchesSearch && matchesMethod;
-  }), [entries, searchFilter, methodFilter]);
+  const lowercaseQuery = searchFilter.trim().toLowerCase();
+
+  const filteredEntries = React.useMemo(() => {
+    if (!lowercaseQuery && methodFilter === 'ALL') return entries;
+    return entries.filter((e) => {
+      if (methodFilter !== 'ALL' && e.request.method !== methodFilter) return false;
+      if (!lowercaseQuery) return true;
+      return matchesEntry(e, lowercaseQuery);
+    });
+  }, [entries, lowercaseQuery, methodFilter]);
 
   const checkedSet = React.useMemo(() => new Set(checkedEntryIds), [checkedEntryIds]);
   const allFilteredChecked = filteredEntries.length > 0 && filteredEntries.every((e) => checkedSet.has(e._id));
@@ -78,7 +84,7 @@ export const Header: React.FC = () => {
         <Search size={14} className="text-neutral-500 shrink-0" />
         <input
           type="text"
-          placeholder="Filter by URL..."
+          placeholder="Filter by URL, headers, body..."
           value={searchFilter}
           onChange={(e) => setSearchFilter(e.target.value)}
           className="bg-transparent outline-none text-neutral-200 placeholder-neutral-500 w-full text-[13px]"

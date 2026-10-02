@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useHarStore } from '../../store/useHarStore';
+import { matchesEntry } from '../../utils/entrySearch';
 
 const METHOD_COLORS: Record<string, string> = {
   GET: 'text-emerald-400',
@@ -35,11 +36,16 @@ export const RequestTable: React.FC = () => {
   const checkedEntryIds = useHarStore((s) => s.checkedEntryIds);
   const toggleChecked = useHarStore((s) => s.toggleChecked);
 
-  const filteredEntries = entries.filter((e) => {
-    const matchesSearch = !searchFilter || e.request.url.toLowerCase().includes(searchFilter.toLowerCase());
-    const matchesMethod = methodFilter === 'ALL' || e.request.method === methodFilter;
-    return matchesSearch && matchesMethod;
-  });
+  const lowercaseQuery = searchFilter.trim().toLowerCase();
+
+  const filteredEntries = useMemo(() => {
+    if (!lowercaseQuery && methodFilter === 'ALL') return entries;
+    return entries.filter((e) => {
+      if (methodFilter !== 'ALL' && e.request.method !== methodFilter) return false;
+      if (!lowercaseQuery) return true;
+      return matchesEntry(e, lowercaseQuery);
+    });
+  }, [entries, lowercaseQuery, methodFilter]);
 
   const checkedSet = useMemo(() => new Set(checkedEntryIds), [checkedEntryIds]);
 
